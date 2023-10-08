@@ -1,10 +1,9 @@
 package io.onedev.server.web.page.admin.mailservice;
 
 import com.google.common.collect.Sets;
-import io.onedev.commons.utils.ExplicitException;
 import io.onedev.commons.utils.TaskLogger;
 import io.onedev.server.OneDev;
-import io.onedev.server.entitymanager.SettingManager;
+import io.onedev.server.manager.SettingManager;
 import io.onedev.server.mail.MailManager;
 import io.onedev.server.persistence.SessionManager;
 import io.onedev.server.security.SecurityUtils;
@@ -25,6 +24,7 @@ import org.apache.wicket.markup.html.form.Form;
 import org.apache.wicket.request.mapper.parameter.PageParameters;
 import org.apache.wicket.util.visit.IVisitor;
 
+import javax.mail.MessagingException;
 import java.io.Serializable;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -84,15 +84,19 @@ public class MailServicePage extends AdministrationPage {
 						String uuid = UUID.randomUUID().toString();
 						var futureRef = new AtomicReference<Future<?>>(null);
 						futureRef.set(inboxMonitor.monitor(message -> {
-							if (message.getSubject() != null && message.getSubject().contains(uuid)) {
-								while (futureRef.get() == null) {
-									try {
-										Thread.sleep(1000);
-									} catch (InterruptedException e) {
-										throw new RuntimeException(e);
+							try {
+								if (message.getSubject() != null && message.getSubject().contains(uuid)) {
+									while (futureRef.get() == null) {
+										try {
+											Thread.sleep(1000);
+										} catch (InterruptedException e) {
+											throw new RuntimeException(e);
+										}
 									}
+									futureRef.get().cancel(true);
 								}
-								futureRef.get().cancel(true);
+							} catch (MessagingException e) {
+								throw new RuntimeException(e);
 							}
 						}, true));
 
